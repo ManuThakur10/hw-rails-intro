@@ -1,9 +1,16 @@
 class MoviesController < ApplicationController
+  SORT_COLUMNS = %w[title release_date].freeze
+
   before_action :set_movie, only: %i[ show edit update destroy ]
 
   # GET /movies or /movies.json
   def index
-    @movies = Movie.all
+    @all_ratings = Movie.all_ratings
+    @ratings_to_show = ratings_to_show
+    @sort_by = sort_by
+
+    @movies = Movie.with_ratings(@ratings_to_show)
+    @movies = @movies.order(@sort_by) if @sort_by
   end
 
   # GET /movies/1 or /movies/1.json
@@ -58,6 +65,27 @@ class MoviesController < ApplicationController
   end
 
   private
+    def ratings_to_show
+      if params.key?(:ratings) || params[:commit] == "Refresh"
+        selected_ratings = if params[:ratings].respond_to?(:keys)
+          params[:ratings].keys.map(&:upcase) & @all_ratings
+        else
+          []
+        end
+
+        session[:ratings] = selected_ratings.presence || @all_ratings
+      else
+        stored_ratings = Array(session[:ratings]).map(&:upcase) & @all_ratings
+        stored_ratings.presence || @all_ratings
+      end
+    end
+
+    def sort_by
+      requested_sort = params[:sort_by].presence_in(SORT_COLUMNS)
+      session[:sort_by] = requested_sort if requested_sort
+      requested_sort || session[:sort_by].presence_in(SORT_COLUMNS)
+    end
+
     # Use callbacks to share common setup or constraints between actions.
     def set_movie
       @movie = Movie.find(params[:id])
